@@ -1,59 +1,56 @@
-#include "enemy.h"
+#include "enemy.hpp"
 
-Enemy::Enemy(int x, int y, Direction dir, charMatrix map, Fantom type) :
-    Character(x, y, dir, map,
-    (type == RED ? "Resources/Images/enemigo_rojo.png" : "Resources/Images/enemigo_verde.png")),
-    type_(type)
+Enemy::Enemy(int x, int y, Direction dir, charMatrix map,
+             ALLEGRO_BITMAP *bitmap, Type type) :
+    Entity(x, y, dir, map, bitmap), mType(type)
 {}
 
-void Enemy::draw(int sourceX, int sourceY, int tileSize)
+void Enemy::render(int tileSize)
 {
-    al_draw_bitmap(sprite_, getX() * tileSize, getY() * tileSize, NULL);
+    al_draw_bitmap(mBitmap, getX() * tileSize, getY() * tileSize, NULL);
 }
 
-Fantom Enemy::getType() const
+Enemy::Type Enemy::getType() const
 {
-    return type_;
+    return mType;
 }
 
 void Enemy::disappear()
 {
-    isDisappeared_ = true;
+    mIsDisappeared = true;
 }
 
 bool Enemy::isActive()
 {
-    return !isDisappeared_;
+    return !mIsDisappeared;
 }
 
-bool Enemy::isCollisionOthers(const Enemy * const other)
+bool Enemy::collides(const Enemy * const other)
 {
     if(this == other)
         return false;
-    bool result;
+    bool isCollision;
     switch (getDirection())
     {
-        case LEFT:
-            result = (getX() - 1 == other->getX()) && (getY() == other->getY());
+        case Direction::LEFT:
+            isCollision = (getX() - 1 == other->getX()) &&
+                    (getY() == other->getY());
             break;
-        case RIGHT:
-            result = (getX() + 1 == other->getX()) && (getY() == other->getY());
+        case Direction::RIGHT:
+            isCollision = (getX() + 1 == other->getX()) &&
+                    (getY() == other->getY());
             break;
-        case UP:
-            result = (getX() == other->getX()) && (getY() - 1 == other->getY());
+        case Direction::UP:
+            isCollision = (getX() == other->getX()) &&
+                    (getY() - 1 == other->getY());
             break;
-        case DOWN:
-            result = (getX() == other->getX()) && (getY() + 1 == other->getY());
+        case Direction::DOWN:
+            isCollision = (getX() == other->getX()) &&
+                    (getY() + 1 == other->getY());
             break;
         default:
-            result = false;
+            isCollision = false;
             break;
     }
-   /* if(result)
-    {
-        std::cout << "Есть коллизия с другим призраком" << std::endl;
-        std::cout << "Его координаты x = " << other->getX() << " y = " << other->getY() << std::endl;
-        std::cout << "Мои координаты x = " << getX() << " y = " << getY() << std::endl;
-    }*/
-    return result;
+    return isCollision;
 }
