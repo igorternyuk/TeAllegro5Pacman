@@ -1,13 +1,13 @@
 #include "enemy.hpp"
 
-Enemy::Enemy(int x, int y, Direction dir, charMatrix map,
+Enemy::Enemy(int x, int y, Direction dir, charMatrix &map,
              ALLEGRO_BITMAP *bitmap, Type type) :
     Entity(x, y, dir, map, bitmap), mType(type)
 {}
 
 void Enemy::render(int tileSize)
 {
-    al_draw_bitmap(mBitmap, getX() * tileSize, getY() * tileSize, NULL);
+    al_draw_bitmap(mBitmap, getX() * tileSize, getY() * tileSize, 0);
 }
 
 Enemy::Type Enemy::getType() const

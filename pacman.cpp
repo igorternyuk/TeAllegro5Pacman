@@ -4,7 +4,7 @@
 #include <cassert>
 #include <iostream>
 
-Pacman::Pacman(int x, int y, Direction dir, charMatrix map, int numLives,
+Pacman::Pacman(int x, int y, Direction dir, charMatrix &map, int numLives,
                ALLEGRO_BITMAP *bitmap, int sourceX, int sourceY,
                int numPictInAnim) :
     Entity(x, y, dir, map, bitmap),
@@ -68,7 +68,7 @@ void Pacman::animate()
 void Pacman::render(int tileSize)
 {
     float pacImAngle = 0.0f;
-    int flag = NULL;
+    int flag = 0;
     switch(getDirection())
     {
         case Direction::LEFT :

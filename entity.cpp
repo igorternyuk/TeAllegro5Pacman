@@ -4,7 +4,7 @@
 #include <map>
 #include <algorithm>
 
-Entity::Entity(int x, int y, Direction dir, charMatrix map,
+Entity::Entity(int x, int y, Direction dir, charMatrix &map,
                ALLEGRO_BITMAP *bitmap) :
     mX(x), mY(y), mInitialX(x), mInitialY(y), mDir(dir), mMap(map),
     mBitmap(bitmap)
@@ -68,7 +68,7 @@ void Entity::move()
         else
             isNextPosOK = false;
     }
-    if(nextY > mMap.size() - 1)
+    if(nextY > int(mMap.size()) - 1)
     {
         if(mMap[mY][mX] == 'I')
             nextY = 0;
@@ -82,7 +82,7 @@ void Entity::move()
         else
             isNextPosOK = false;
     }
-    if(nextX > mMap[nextY].size() - 1)
+    if(nextX > int(mMap[nextY].size()) - 1)
     {
         if(mMap[mY][mX] == 'I')
             nextX = 0;
@@ -161,11 +161,9 @@ float Entity::caclDistanceToTheTarget(Direction dir, int targetX, int targetY)
         case Direction::UP:
             return (mX - targetX) * (mX - targetX) +
                     (mY - 1 - targetY) * (mY - 1 - targetY);
-        case Direction::DOWN:
+        default:
             return (mX - targetX) * (mX - targetX) +
                     (mY + 1 - targetY) * (mY + 1 - targetY);
-        default:
-            break;
     }
 }
 

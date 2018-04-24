@@ -6,7 +6,7 @@ class Fruit;
 class Pacman : public Entity
 {
 public:
-    explicit Pacman(int x, int y, Direction dir, charMatrix map,
+    explicit Pacman(int x, int y, Direction dir, charMatrix &map,
                     int numLives, ALLEGRO_BITMAP *bitmap, int sourceX = 0,
                     int sourceY = 0, int numPictInAnim = 6);
     void handleUserInput(ALLEGRO_KEYBOARD_STATE *keyState);

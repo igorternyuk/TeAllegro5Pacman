@@ -80,23 +80,16 @@ private:
     int mFoodAmount;
     bool mIsRunning = true;
     bool mRender = false;
-    //Probably these three booleans should be replaced with enum GameStatus
-
-    const float mPacMovingSpeed = 4.0f;    // Скорость движения пакмена
-    const float mFantomMovingSpeed = 1.0f; // Скорость фантомов
-    const float mPacAnimSpeed = 10.0f;     // Скорость анимации пакмена
+    const float mPacMovingSpeed = 4.0f;
+    const float mFantomMovingSpeed = 1.0f;
+    const float mPacAnimSpeed = 10.0f;
     std::unique_ptr<Pacman> mPacman;
     std::vector<std::unique_ptr<Fruit>> mFruits;
     std::vector<std::unique_ptr<Enemy>> mEnemies;
-    //bool mIsGamePaused = false;
-    //bool mIsWin = false;
-    //bool mIsLost = false;
     GameState mGameState = GameState::PLAYING;
 
-    //////////////////
     void update();
     void render();
-    ////////////////
     void loadSettings(const std::string &fileName);
     void loadFonts();
     void loadSounds();
