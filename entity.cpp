@@ -1,6 +1,7 @@
 #include "entity.hpp"
 #include <iostream>
 #include <cmath>
+#include <map>
 #include <algorithm>
 
 Entity::Entity(int x, int y, Direction dir, charMatrix map,
@@ -133,35 +134,39 @@ bool Entity::isPossibleDirection(Direction dir)
 
 void Entity::chooseShortestWay(int targetX, int targetY)
 {
-   std::vector<std::pair<Direction, float>> distances;
-   float leftDistance = (mX - 1 - targetX) * (mX - 1 - targetX) +
-           (mY - targetY) * (mY - targetY);
-
-   std::pair<Direction, float> left(Direction::LEFT, leftDistance);
-   distances.push_back(left);
-   float rightDistance = (mX + 1 - targetX) * (mX + 1 - targetX) +
-           (mY - targetY) * (mY - targetY);
-
-   std::pair<Direction, float> right(Direction::RIGHT, rightDistance);
-   distances.push_back(right);
-   float upDistance = (mX - targetX) * (mX - targetX) +
-           (mY - 1 - targetY) * (mY - 1 - targetY);
-
-   std::pair<Direction, float> up(Direction::UP, upDistance);
-   distances.push_back(up);
-   float downDistance = (mX - targetX) * (mX - targetX) +
-           (mY + 1 - targetY) * (mY + 1 - targetY);
-
-   std::pair<Direction, float> down(Direction::DOWN, downDistance);
-   distances.push_back(down);
-   std::sort(distances.begin(), distances.end(),
-             [](auto a, auto b){ return a.second < b.second;});
-   int index = 0;
-   while(!isPossibleDirection(distances[index].first))
+   Direction allDirs[] =  {Direction::LEFT, Direction::RIGHT, Direction::UP,
+                           Direction::DOWN };
+   std::multimap<float, Direction> distDirMap;
+   for(auto dir: allDirs)
    {
-       ++index;
-   };
-   this->mDir = distances[index].first;
+       if(isPossibleDirection(dir))
+       {
+           float dist = caclDistanceToTheTarget(dir, targetX, targetY);
+           distDirMap.insert(std::make_pair(dist, dir));
+       }
+   }
+
+   this->mDir = distDirMap.begin()->second;
+}
+
+float Entity::caclDistanceToTheTarget(Direction dir, int targetX, int targetY)
+{
+    switch (dir) {
+        case Direction::LEFT:
+            return (mX - 1 - targetX) * (mX - 1 - targetX) +
+                    (mY - targetY) * (mY - targetY);
+        case Direction::RIGHT:
+            return (mX + 1 - targetX) * (mX + 1 - targetX) +
+                    (mY - targetY) * (mY - targetY);
+        case Direction::UP:
+            return (mX - targetX) * (mX - targetX) +
+                    (mY - 1 - targetY) * (mY - 1 - targetY);
+        case Direction::DOWN:
+            return (mX - targetX) * (mX - targetX) +
+                    (mY + 1 - targetY) * (mY + 1 - targetY);
+        default:
+            break;
+    }
 }
 
 void Entity::chooseRandomDir()

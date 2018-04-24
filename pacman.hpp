@@ -9,22 +9,24 @@ public:
     explicit Pacman(int x, int y, Direction dir, charMatrix map,
                     int numLives, ALLEGRO_BITMAP *bitmap, int sourceX = 0,
                     int sourceY = 0, int numPictInAnim = 6);
-    void update();
-    void render(int tileSize);
-    int getNumLives() const;
+    void handleUserInput(ALLEGRO_KEYBOARD_STATE *keyState);
+    void reset();
+    void animate();
+    void stopAnimation();
+    void setMoving(bool isMoving);
+    void score(Fruit *fruit);
     void wound();
     void healWound();
-    void reset();
+    void render(int tileSize);
     bool isAlive() const;
     bool isWounded() const;
     bool isMoving() const;
-    bool stopAnimation();
-    void setMoving(bool isMoving);
-    void score(Fruit *fruit);
+    int getNumLives() const;
     int getScore() const;
     int getNumEatenFruits() const;
 
 private:
+
     const int INIT_LIVES_NUMBER;
     int numLives_;
     bool mIsMoving = false;

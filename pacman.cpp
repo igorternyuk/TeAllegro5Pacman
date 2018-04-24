@@ -12,13 +12,40 @@ Pacman::Pacman(int x, int y, Direction dir, charMatrix map, int numLives,
     mSourceY(sourceY), mNumPictInAnim(numPictInAnim)
 {}
 
-void Pacman::update()
+void Pacman::handleUserInput(ALLEGRO_KEYBOARD_STATE *keyState)
 {
+    setMoving(true);
+    if(al_key_down(keyState, ALLEGRO_KEY_LEFT))
+    {
+        setDirection(Direction::LEFT);
+        move();
+    }
+    else if(al_key_down(keyState, ALLEGRO_KEY_RIGHT))
+    {
+        setDirection(Direction::RIGHT);
+        move();
+    }
+    else if(al_key_down(keyState, ALLEGRO_KEY_UP))
+    {
+        setDirection(Direction::UP);
+        move();
+    }
+    else if(al_key_down(keyState, ALLEGRO_KEY_DOWN))
+    {
+        setDirection(Direction::DOWN);
+        move();
+    }
+    else
+    {
+       setMoving(false);
+    }
+}
 
+void Pacman::animate()
+{
     //Обработка события таймера анимации пакмена
     if(mIsMoving || this->mIsWounded)
     {
-        std::cout << "pacman update" << std::endl;
         ++mSourceX;
         if(mSourceX >= mNumPictInAnim)
         {
@@ -115,7 +142,7 @@ bool Pacman::isMoving() const
     return mIsMoving;
 }
 
-bool Pacman::stopAnimation()
+void Pacman::stopAnimation()
 {
     mSourceX = 0;
     mSourceY = 0;

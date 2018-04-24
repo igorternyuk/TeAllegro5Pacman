@@ -4,7 +4,6 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
-#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -14,24 +13,8 @@ Game::Game()
     //Allegro5 initialization
     if(!al_init())
     {
-       /* al_show_native_message_box(NULL,NULL,NULL,
-                                   "Could not initialize Allegro 5", NULL, 0);*/
         throw std::runtime_error("Could not initialize Allegro5");
     }
-
-    mDisplay = al_create_display(SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    if(!mDisplay)
-    {
-         /*al_show_native_message_box(NULL, NULL, NULL,
-                                    "Could not create Allegro Window", NULL,0);*/
-         throw std::runtime_error("Could not create Allegro Window");
-    }
-
-    al_set_new_display_flags(ALLEGRO_RESIZABLE);
-
-    al_set_window_position(mDisplay, WINDOW_LEFT, WINDOW_TOP);
-    al_set_window_title(mDisplay, WINDOW_TITLE);
     al_init_image_addon();
     al_init_font_addon();
     al_init_ttf_addon();
@@ -40,6 +23,18 @@ Game::Game()
     al_init_acodec_addon();
     al_install_keyboard();
     al_install_mouse();
+
+    mDisplay = al_create_display(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    if(!mDisplay)
+    {
+         throw std::runtime_error("Could not create Allegro Window");
+    }
+
+    al_set_new_display_flags(ALLEGRO_RESIZABLE);
+
+    al_set_window_position(mDisplay, WINDOW_LEFT, WINDOW_TOP);
+    al_set_window_title(mDisplay, WINDOW_TITLE);
 
     loadSettings(PATH_TO_SETTINGS_FILE);
 
@@ -64,28 +59,20 @@ Game::Game()
     al_register_event_source(mEventQueue, al_get_display_event_source(mDisplay));
     al_register_event_source(mEventQueue, al_get_keyboard_event_source());
 
-    mPacman = new Pacman(mInitPacmanX, mInitPacmanY, Direction::LEFT, mMap,
-                         mPacmanLivesCount, mPacmanBitmap);
+    mPacman = std::make_unique<Pacman>(mInitPacmanX, mInitPacmanY, Direction::LEFT, mMap,
+                               mPacmanLivesCount, mPacmanBitmap);
     prepareNewGame();
 }
 
 Game::~Game()
 {
-    for(auto &f : mFruits)
-            delete f;
-    for(auto &e : mEnemies)
-            delete e;
-    delete mPacman;
-    destroyFonts();
-    destroySounds();
-
     al_destroy_timer(mTimer);
     al_destroy_timer(mFantomTimer);
     al_destroy_timer(mFrameTimer);
     al_destroy_event_queue(mEventQueue);
-
+    destroySounds();
+    destroyFonts();
     destroyBitmaps();
-
     al_destroy_display(mDisplay);
 }
 
@@ -97,214 +84,100 @@ void Game::run()
     al_play_sample_instance(mBackgroundMusicInstance);
 
     //main loop of the game
-    while(!mDone) {
-        ALLEGRO_EVENT events;
-        al_wait_for_event(mEventQueue, &events);
-        al_get_keyboard_state(&mKeyState);
-        if(events.type == ALLEGRO_EVENT_KEY_UP)
+    while(mIsRunning) {
+       update();
+       render();
+    }
+}
+
+void Game::update()
+{
+    ALLEGRO_EVENT events;
+    al_wait_for_event(mEventQueue, &events);
+    al_get_keyboard_state(&mKeyState);
+    if(events.type == ALLEGRO_EVENT_KEY_UP)
+    {
+        if(events.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
         {
-            std::cout << "keyup" << std::endl;
-            if(events.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-            {
-                mDone = true;
-                break;
-            }
-            else if(events.keyboard.keycode == ALLEGRO_KEY_SPACE)
-            {
-                //Using space key we can pause or resume our game
-                mIsGamePaused = !mIsGamePaused;
-                if(mIsGamePaused)
-                {
-                    al_stop_timer(mTimer);
-                    al_stop_timer(mFantomTimer);
-                    al_stop_timer(mFrameTimer);
-                }
-                else
-                {
-                    al_start_timer(mTimer);
-                    al_start_timer(mFantomTimer);
-                    al_start_timer(mFrameTimer);
-                }
-            }
-            else if(events.keyboard.keycode == ALLEGRO_KEY_N)
-            {
-                prepareNewGame();
-            }
+            mIsRunning = false;
         }
-        else if(events.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
+        else if(events.keyboard.keycode == ALLEGRO_KEY_SPACE)
         {
-            mDone = true;
-            //std::cout << "Close event" << std::endl;
-            break;
+            togglePause();
         }
-        else if(events.type == ALLEGRO_EVENT_TIMER)
+        else if(events.keyboard.keycode == ALLEGRO_KEY_N)
         {
-            //std::cout << "Timer event" << std::endl;
-            if(events.timer.source == mTimer)
-            {
-                mPacman->setMoving(true);
-                if(al_key_down(&mKeyState, ALLEGRO_KEY_LEFT))
-                {
-                    mPacman->setDirection(Direction::LEFT);
-                    mPacman->move();
-                }
-                else if(al_key_down(&mKeyState, ALLEGRO_KEY_RIGHT))
-                {
-                    mPacman->setDirection(Direction::RIGHT);
-                    mPacman->move();
-                }
-                else if(al_key_down(&mKeyState, ALLEGRO_KEY_UP))
-                {
-                    mPacman->setDirection(Direction::UP);
-                    mPacman->move();
-                }
-                else if(al_key_down(&mKeyState, ALLEGRO_KEY_DOWN))
-                {
-                    mPacman->setDirection(Direction::DOWN);
-                    mPacman->move();
-                }
-                else
-                {
-                   mPacman->setMoving(false);
-                }
-                //Checking for pacman and food collisions
-                for(auto &f : mFruits)
-                {
-                    if(!f->isEaten() && mPacman->isCollision(f->getX(), f->getY()))
-                    {
-                        mPacman->score(f);
-                        al_play_sample(mSoundPacmanChomp, 1.0f, 0.0f, 1.0,
-                                       ALLEGRO_PLAYMODE_ONCE, 0);
-                        break;
-                    }
-                }
-
-                //Checking for pacman and fantoms collisions
-
-                for(auto &fantom : mEnemies)
-                    if(fantom->isActive() && mPacman->isCollision(fantom->getX(), fantom->getY()))
-                    {
-                        handlePacmanEnemyCollision(fantom);
-                        //al_stop_timer(mFantomTimer);
-                        break;
-                    }
-
-                //Checking for a win
-
-                if(mPacman->isAlive() && mPacman->getNumEatenFruits() == mFoodAmount)
-                {
-                    mIsWin = true;
-                    al_stop_timer(mFantomTimer);
-                    al_stop_timer(mTimer);
-                    al_stop_timer(mFrameTimer);
-                }
-                if(!mPacman->isAlive())
-                {
-                    mIsLost = true;
-                    al_stop_timer(mFantomTimer);
-                    al_stop_timer(mTimer);
-                    al_stop_timer(mFrameTimer);
-                }
-            }
-            else if(events.timer.source == mFantomTimer)
-            {
-                for(auto &fantom : mEnemies)
-                {
-                    if(fantom->isActive())
-                    {
-                       bool isCrossing = mMap[fantom->getY()][fantom->getX()] == '+';
-                       if(fantom->collidesWall() || isCrossing)
-                       {
-                            if(fantom->getType() == Enemy::Type::RED)
-                                fantom->chooseShortestWay(mPacman->getX(), mPacman->getY());
-                            else if(fantom->getType() == Enemy::Type::GREEN)
-                                fantom->chooseRandomDir();
-                       }
-
-                        //Checking for collisions of current fantom with other ones
-
-                        for(auto &otherFantom : mEnemies)
-                        {
-                            if(otherFantom->isActive() &&
-                               fantom->collides(otherFantom))
-                            {
-                                switch (fantom->getDirection()) {
-                                case Direction::LEFT:
-                                    fantom->setDirection(Direction::RIGHT);
-                                    break;
-                                case Direction::RIGHT:
-                                    fantom->setDirection(Direction::LEFT);
-                                    break;
-                                case Direction::UP:
-                                    fantom->setDirection(Direction::DOWN);
-                                    break;
-                                case Direction::DOWN:
-                                    fantom->setDirection(Direction::UP);
-                                    break;
-                                default:
-                                    break;
-                                }
-                                break;
-                            }
-                        }
-                        fantom->move();
-                        // Checking for collisions fantoms with pacman
-                        if(fantom->isCollision(mPacman->getX(), mPacman->getY()))
-                        {
-                            handlePacmanEnemyCollision(fantom);
-                            //al_stop_timer(mFantomTimer);
-                        }
-                    }
-                }
-            }
-            else if(events.timer.source == mFrameTimer)
-            {
-                if(mPacman->isMoving() || mPacman->isWounded())
-                {
-                    mPacman->update();
-                }
-                else
-                {
-                    mPacman->stopAnimation();
-                }
-
-            }
-            mRender = true;
-        }
-
-        if(mRender) {
-            al_clear_to_color(al_map_rgb(0,0,0));
-            drawMap(mWallBitmap, mMap);
-            //Прорисовываем еду если она не сьедена
-            for(auto &f : mFruits)
-                if(!f->isEaten())
-                    f->render(TILE_SIZE);
-            //Прорисовываем пакмена
-            mPacman->render(TILE_SIZE);
-            //Прорисовываем врагов
-            for(auto &fantom : mEnemies)
-            {
-                if(fantom->isActive())
-                    fantom->render(TILE_SIZE);
-            }
-            drawPacmanScore(20 , SCREEN_HEIGHT - 45, mSmallFont);
-            drawPacmanLives( mSmallFont);
-            if(mIsGamePaused && !mIsWin && !mIsLost)
-            {
-                drawMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120, GAME_PAUSED_TEXT, al_map_rgb(255,255,0), mLargeFont);
-            }
-            else if(mIsWin)
-            {
-                drawMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120, WIN_MESSAGE_TEXT, al_map_rgb(255,255,0), mMiddleFont);
-            }
-            else if(mIsLost)
-            {
-                drawMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120, LOST_MESSAGE_TEXT, al_map_rgb(255,255,255), mLargeFont);
-            }
-            al_flip_display();
+            prepareNewGame();
         }
     }
+    else if(events.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
+    {
+        mIsRunning = false;
+    }
+    else if(events.type == ALLEGRO_EVENT_TIMER)
+    {
+        if(events.timer.source == mTimer)
+        {
+            mPacman->handleUserInput(&mKeyState);
+            checkPacmanCollisions();
+            checkGameState();
+        }
+        else if(events.timer.source == mFantomTimer)
+        {
+            checkFantomCollisions();
+        }
+        else if(events.timer.source == mFrameTimer)
+        {
+            if(mPacman->isMoving() || mPacman->isWounded())
+            {
+                mPacman->animate();
+            }
+            else
+            {
+                mPacman->stopAnimation();
+            }
+        }
+        mRender = true;
+    }
+}
 
+void Game::render()
+{
+    if(mRender) {
+        al_clear_to_color(al_map_rgb(0,0,0));
+
+        renderMap(mWallBitmap, mMap);
+
+        for(auto &f : mFruits)
+            if(!f->isEaten())
+                f->render(TILE_SIZE);
+
+        mPacman->render(TILE_SIZE);
+
+        for(auto &fantom : mEnemies)
+        {
+            if(fantom->isActive())
+                fantom->render(TILE_SIZE);
+        }
+        renderPacmanScore(20 , SCREEN_HEIGHT - 45, mSmallFont);
+        renderPacmanLives( mSmallFont);
+        if(mGameState == GameState::PAUSE)
+        {
+            renderTextMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120,
+                        GAME_PAUSED_TEXT, al_map_rgb(255,255,0), mLargeFont);
+        }
+        else if(mGameState == GameState::VICTORY)
+        {
+            renderTextMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120,
+                        WIN_MESSAGE_TEXT, al_map_rgb(255,255,0), mMiddleFont);
+        }
+        else if(mGameState == GameState::DEFEAT)
+        {
+            renderTextMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120,
+                        LOST_MESSAGE_TEXT, al_map_rgb(255,255,255), mLargeFont);
+        }
+        al_flip_display();
+    }
 }
 
 void Game::loadSettings(const std::string &fileName)
@@ -392,8 +265,6 @@ void Game::loadSettings(const std::string &fileName)
            }
        }
        fi.close();
-       //std::cout << "H = " << mMap.size() << std::endl;
-      // std::cout << "W = " << mMap[0].size() << std::endl;
        if(mMap.empty() || !mWallBitmap)
        {
            throw std::runtime_error("Incorrect map file!");
@@ -408,7 +279,7 @@ void Game::loadSettings(const std::string &fileName)
 
 void Game::loadFonts()
 {
-    mSmallFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 36, 0);
+    mSmallFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 28, 0);
     mMiddleFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 48, 0);
     mLargeFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 120, 0);
 }
@@ -473,7 +344,7 @@ void Game::destroySounds()
     al_destroy_sample_instance(mBackgroundMusicInstance);
 }
 
-void Game::drawMap(ALLEGRO_BITMAP *wall, const charMatrix &map)
+void Game::renderMap(ALLEGRO_BITMAP *wall, const charMatrix &map)
 {
     for(int row = 0; row < int(map.size()); ++row)
     {
@@ -490,7 +361,6 @@ void Game::drawMap(ALLEGRO_BITMAP *wall, const charMatrix &map)
 
 void Game::createEnemies()
 {
-    printMap();
     for(int i = 0; i < mEnemiesCount; ++i)
     {
         int randX, randY;
@@ -514,10 +384,10 @@ void Game::createEnemies()
         } while(!isGoodPosition);
         Enemy::Type type = rand() % 100 < 50 ? Enemy::Type::RED :
                                                Enemy::Type::GREEN;
-        Enemy *enemy = new Enemy(randX, randY, Direction::RIGHT, mMap,
-                                 mEnemyBitmaps[type], type);
+        auto enemy = std::make_unique<Enemy>(randX, randY, Direction::RIGHT, mMap,
+                                      mEnemyBitmaps[type], type);
         enemy->chooseRandomDir();
-        mEnemies.push_back(enemy);
+        mEnemies.push_back(std::move(enemy));
     }
 }
 
@@ -564,32 +434,156 @@ void Game::createFruits()
                 break;
 
         }
-        Fruit *f = new Fruit(randX, randY, randType, mFruitBitmaps[randType]);
-        mFruits.push_back(f);
+        auto fruit = std::make_unique<Fruit>(randX, randY, randType, mFruitBitmaps[randType]);
+        mFruits.push_back(std::move(fruit));
     }
 }
 
-void Game::handlePacmanEnemyCollision(Enemy *&enemy)
+void Game::togglePause()
+{
+    //Using space key we can pause or resume our game
+    //mIsGamePaused = !mIsGamePaused;
+    if(mGameState == GameState::PLAYING)
+    {
+        mGameState = GameState::PAUSE;
+        stopAllTimers();
+    }
+    else if(mGameState == GameState::PAUSE)
+    {
+        mGameState = GameState::PLAYING;
+        startAllTimers();
+    }
+}
+
+void Game::checkGameState()
+{
+    if(mPacman->isAlive() && mPacman->getNumEatenFruits() == mFoodAmount)
+    {
+        mGameState = GameState::VICTORY;
+        stopAllTimers();
+    }
+    if(!mPacman->isAlive())
+    {
+        mGameState = GameState::DEFEAT;
+        stopAllTimers();
+    }
+}
+
+void Game::startAllTimers()
+{
+    al_start_timer(mTimer);
+    al_start_timer(mFantomTimer);
+    al_start_timer(mFrameTimer);
+}
+
+void Game::stopAllTimers()
+{
+    al_stop_timer(mFantomTimer);
+    al_stop_timer(mTimer);
+    al_stop_timer(mFrameTimer);
+}
+
+void Game::checkPacmanCollisions()
+{
+    //Checking for pacman and food collisions
+    for(auto &f : mFruits)
+    {
+        if(!f->isEaten() && mPacman->isCollision(f->getX(), f->getY()))
+        {
+            mPacman->score(f.get());
+            al_play_sample(mSoundPacmanChomp, 1.0f, 0.0f, 1.0,
+                           ALLEGRO_PLAYMODE_ONCE, 0);
+            break;
+        }
+    }
+
+    //Checking for pacman and fantoms collisions
+
+    for(const auto &fantom : mEnemies)
+    {
+        if(fantom->isActive() && mPacman->isCollision(fantom->getX(), fantom->getY()))
+        {
+            handlePacmanEnemyCollision(*fantom);
+            //al_stop_timer(mFantomTimer);
+            break;
+        }
+    }
+}
+
+void Game::checkFantomCollisions()
+{
+    for(auto &fantom : mEnemies)
+    {
+        if(fantom->isActive())
+        {
+           bool isCrossing = mMap[fantom->getY()][fantom->getX()] == '+';
+           if(fantom->collidesWall() || isCrossing)
+           {
+                if(fantom->getType() == Enemy::Type::RED)
+                    fantom->chooseShortestWay(mPacman->getX(), mPacman->getY());
+                else if(fantom->getType() == Enemy::Type::GREEN)
+                    fantom->chooseRandomDir();
+           }
+
+            //Checking for collisions of current fantom with other ones
+
+            for(auto &otherFantom : mEnemies)
+            {
+                if(otherFantom->isActive() &&
+                   fantom->collides(otherFantom.get()))
+                {
+                    switch (fantom->getDirection()) {
+                    case Direction::LEFT:
+                        fantom->setDirection(Direction::RIGHT);
+                        break;
+                    case Direction::RIGHT:
+                        fantom->setDirection(Direction::LEFT);
+                        break;
+                    case Direction::UP:
+                        fantom->setDirection(Direction::DOWN);
+                        break;
+                    case Direction::DOWN:
+                        fantom->setDirection(Direction::UP);
+                        break;
+                    default:
+                        break;
+                    }
+                    break;
+                }
+            }
+            fantom->move();
+
+            // Checking for collisions fantoms with pacman
+            if(fantom->isCollision(mPacman->getX(), mPacman->getY()))
+            {
+                handlePacmanEnemyCollision(*fantom);
+            }
+        }
+    }
+}
+
+void Game::handlePacmanEnemyCollision(Enemy &enemy)
 {
     mPacman->setDirection(Direction::LEFT);
     mPacman->wound();
-    enemy->disappear();
+    enemy.disappear();
     al_play_sample(mSoundPacmanDeath, 1.0f, 0.0f, 1.0, ALLEGRO_PLAYMODE_ONCE, 0);
 }
 
-void Game::drawPacmanScore(int left, int top, ALLEGRO_FONT *font)
+void Game::renderPacmanScore(int left, int top, ALLEGRO_FONT *font)
 {
     std::stringstream ss;
-    ss << "Score: " << mPacman->getScore();
+    ss << "Score: " << mPacman->getScore() << " Fruits: "<<
+          mPacman->getNumEatenFruits();
     al_draw_text(font, al_map_rgb(255,50,0), left , top,
                  ALLEGRO_ALIGN_LEFT, ss.str().c_str());
 }
 
-void Game::drawPacmanLives(ALLEGRO_FONT *font)
+void Game::renderPacmanLives(ALLEGRO_FONT *font)
 {
     int numLives = mPacman->getNumLives();
     al_draw_text(font, al_map_rgb(70, 80, 255), SCREEN_WIDTH - 160 / 5 * numLives,
-                 SCREEN_HEIGHT - 50, ALLEGRO_ALIGN_RIGHT, "Pacman lives: ");
+                 SCREEN_HEIGHT - 45, ALLEGRO_ALIGN_RIGHT, "Pacman lives: ");
     const int circleRadius = 15;
     for(int i = 1; i <= numLives; ++i)
     {
@@ -599,7 +593,7 @@ void Game::drawPacmanLives(ALLEGRO_FONT *font)
     }
 }
 
-void Game::drawMessage(const int &textLeft, const int &textTop,
+void Game::renderTextMessage(const int &textLeft, const int &textTop,
                        const std::string &text, ALLEGRO_COLOR color,
                        ALLEGRO_FONT *font)
 {
@@ -609,18 +603,13 @@ void Game::drawMessage(const int &textLeft, const int &textTop,
 
 void Game::prepareNewGame()
 {
-    mIsGamePaused = false;
-    mIsWin = false;
-    mIsLost = false;
+    mGameState = GameState::PLAYING;
     mPacman->reset();
-    for(auto f : mFruits)
-        delete f;
     mFruits.clear();
-    for(auto e : mEnemies)
-        delete e;
     mEnemies.clear();
     createFruits();
     createEnemies();
+    startAllTimers();
 }
 
 //For debugging only

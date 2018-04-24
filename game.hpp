@@ -9,11 +9,13 @@
 #include <allegro5/allegro_audio.h>
 #include <allegro5/allegro_acodec.h>
 
-#include <vector>
-#include <map>
 #include "pacman.hpp"
 #include "enemy.hpp"
 #include "fruit.hpp"
+
+#include <vector>
+#include <map>
+#include <memory>
 
 class Game
 {
@@ -29,6 +31,14 @@ private:
         WINDOW_LEFT = 200,
         WINDOW_TOP = 20,
         TILE_SIZE = 32
+    };
+
+    enum class GameState
+    {
+        PLAYING,
+        PAUSE,
+        VICTORY,
+        DEFEAT
     };
 
     const char* WINDOW_TITLE = "Pacman";
@@ -68,21 +78,22 @@ private:
     charMatrix mMap;
     int mInitPacmanX, mInitPacmanY, mPacmanLivesCount, mEnemiesCount;
     int mFoodAmount;
-    bool mDone = false;
+    bool mIsRunning = true;
     bool mRender = false;
     //Probably these three booleans should be replaced with enum GameStatus
-    bool mIsGamePaused = false;
-    bool mIsWin = false;
-    bool mIsLost = false;
+
     const float mPacMovingSpeed = 4.0f;    // Скорость движения пакмена
     const float mFantomMovingSpeed = 1.0f; // Скорость фантомов
     const float mPacAnimSpeed = 10.0f;     // Скорость анимации пакмена
-    Pacman *mPacman;
-    std::vector<Fruit*> mFruits;
-    std::vector<Enemy*> mEnemies;
+    std::unique_ptr<Pacman> mPacman;
+    std::vector<std::unique_ptr<Fruit>> mFruits;
+    std::vector<std::unique_ptr<Enemy>> mEnemies;
+    //bool mIsGamePaused = false;
+    //bool mIsWin = false;
+    //bool mIsLost = false;
+    GameState mGameState = GameState::PLAYING;
 
     //////////////////
-    void handleEvents();
     void update();
     void render();
     ////////////////
@@ -95,11 +106,17 @@ private:
     void destroySounds();
     void createEnemies();
     void createFruits();
-    void handlePacmanEnemyCollision(Enemy *&enemy);
-    void drawMap(ALLEGRO_BITMAP *mWallBitmap, const charMatrix &mMap);
-    void drawPacmanScore(int left, int top, ALLEGRO_FONT *mSmallFont);
-    void drawPacmanLives(ALLEGRO_FONT *mSmallFont);
-    void drawMessage(const int &textLeft, const int &textTop,
+    void togglePause();
+    void checkGameState();
+    void startAllTimers();
+    void stopAllTimers();
+    void checkPacmanCollisions();
+    void checkFantomCollisions();
+    void handlePacmanEnemyCollision(Enemy &enemy);
+    void renderMap(ALLEGRO_BITMAP *mWallBitmap, const charMatrix &mMap);
+    void renderPacmanScore(int left, int top, ALLEGRO_FONT *mSmallFont);
+    void renderPacmanLives(ALLEGRO_FONT *mSmallFont);
+    void renderTextMessage(const int &textLeft, const int &textTop,
                      const std::string &text, ALLEGRO_COLOR color,
                      ALLEGRO_FONT *mSmallFont);
     void prepareNewGame();

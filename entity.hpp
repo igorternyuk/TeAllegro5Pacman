@@ -36,5 +36,6 @@ private:
     const int mInitialY;
     Direction mDir;
     charMatrix mMap;
+    float caclDistanceToTheTarget(Direction dir, int targetX, int targetY);
 };
 
