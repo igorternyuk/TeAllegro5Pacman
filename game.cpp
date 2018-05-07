@@ -10,20 +10,6 @@
 
 Game::Game()
 {
-    //Allegro5 initialization
-    if(!al_init())
-    {
-        throw std::runtime_error("Could not initialize Allegro5");
-    }
-    al_init_image_addon();
-    al_init_font_addon();
-    al_init_ttf_addon();
-    al_init_primitives_addon();
-    al_install_audio();
-    al_init_acodec_addon();
-    al_install_keyboard();
-    al_install_mouse();
-
     mDisplay = al_create_display(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     if(!mDisplay)
@@ -32,7 +18,6 @@ Game::Game()
     }
 
     al_set_new_display_flags(ALLEGRO_RESIZABLE);
-
     al_set_window_position(mDisplay, WINDOW_LEFT, WINDOW_TOP);
     al_set_window_title(mDisplay, WINDOW_TITLE);
 
@@ -60,7 +45,7 @@ Game::Game()
     al_register_event_source(mEventQueue, al_get_keyboard_event_source());
 
     mPacman = std::make_unique<Pacman>(mInitPacmanX, mInitPacmanY, Direction::LEFT, mMap,
-                               mPacmanLivesCount, mPacmanBitmap);
+                               mPacmanLivesCount, mBitmaps.get(BitmapID::Pacman).get());
     prepareNewGame();
 }
 
@@ -71,8 +56,6 @@ Game::~Game()
     al_destroy_timer(mFrameTimer);
     al_destroy_event_queue(mEventQueue);
     destroySounds();
-    destroyFonts();
-    destroyBitmaps();
     al_destroy_display(mDisplay);
 }
 
@@ -146,7 +129,7 @@ void Game::render()
     if(mRender) {
         al_clear_to_color(al_map_rgb(0,0,0));
 
-        renderMap(mWallBitmap, mMap);
+        renderMap(mMap);
 
         for(auto &f : mFruits)
             if(!f->isEaten())
@@ -159,22 +142,27 @@ void Game::render()
             if(fantom->isActive())
                 fantom->render(TILE_SIZE);
         }
-        renderPacmanScore(20 , SCREEN_HEIGHT - 45, mSmallFont);
-        renderPacmanLives( mSmallFont);
+        renderPacmanScore(20 , SCREEN_HEIGHT - 45,
+                          mFonts.get(FontID::Small).get());
+        renderPacmanLives(mFonts.get(FontID::Small).get());
+
         if(mGameState == GameState::PAUSE)
         {
             renderTextMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120,
-                        GAME_PAUSED_TEXT, al_map_rgb(255,255,0), mLargeFont);
+                              GAME_PAUSED_TEXT, al_map_rgb(255,255,0),
+                              mFonts.get(FontID::Large).get());
         }
         else if(mGameState == GameState::VICTORY)
         {
             renderTextMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120,
-                        WIN_MESSAGE_TEXT, al_map_rgb(255,255,0), mMiddleFont);
+                              WIN_MESSAGE_TEXT, al_map_rgb(255,255,0),
+                              mFonts.get(FontID::Middle).get());
         }
         else if(mGameState == GameState::DEFEAT)
         {
             renderTextMessage(SCREEN_WIDTH /  2, SCREEN_HEIGHT / 2 - 120,
-                        LOST_MESSAGE_TEXT, al_map_rgb(255,255,255), mLargeFont);
+                              LOST_MESSAGE_TEXT, al_map_rgb(255,255,255),
+                              mFonts.get(FontID::Large).get());
         }
         al_flip_display();
     }
@@ -255,7 +243,7 @@ void Game::loadSettings(const std::string &fileName)
                    stream >> mFoodAmount;
                    break;
                case TILE_SET :
-                   mWallBitmap = al_load_bitmap(line.c_str());
+                   mPathToWallBitmap = line;
                    break;
                case MAP :
                    mMap.push_back(line);
@@ -265,7 +253,7 @@ void Game::loadSettings(const std::string &fileName)
            }
        }
        fi.close();
-       if(mMap.empty() || !mWallBitmap)
+       if(mMap.empty() || mPathToWallBitmap.empty())
        {
            throw std::runtime_error("Incorrect map file!");
        }
@@ -279,80 +267,60 @@ void Game::loadSettings(const std::string &fileName)
 
 void Game::loadFonts()
 {
-    mSmallFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 28, 0);
-    mMiddleFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 48, 0);
-    mLargeFont = al_load_font("Resources/Fonts/DroidSansMono.ttf", 120, 0);
+    mFonts.load(FontID::Small, "Resources/Fonts/DroidSansMono.ttf", 28);
+    mFonts.load(FontID::Middle, "Resources/Fonts/DroidSansMono.ttf", 48);
+    mFonts.load(FontID::Large, "Resources/Fonts/DroidSansMono.ttf", 120);
 }
 
 void Game::loadSounds()
 {
-    mSoundPacmanChomp = al_load_sample("Resources/Sounds/pacman_chomp.wav");
-    mSoundPacmanDeath = al_load_sample("Resources/Sounds/pacman_death.wav");
+    mSounds.load(SampleID::PacmanChomp, "Resources/Sounds/pacman_chomp.wav");
+    mSounds.load(SampleID::PagmanDeath, "Resources/Sounds/pacman_death.wav");
+    mSounds.load(SampleID::Bgm, "Resources/Sounds/mario_background.ogg");
     al_reserve_samples(3);
+
     // Loads background music
-    mBackgroundMusicSample = al_load_sample("Resources/Sounds/mario_background.ogg");
-    mBackgroundMusicInstance = al_create_sample_instance(mBackgroundMusicSample);
+    mBackgroundMusicInstance = al_create_sample_instance(mSounds.get(SampleID::Bgm).get());
     al_set_sample_instance_playmode(mBackgroundMusicInstance , ALLEGRO_PLAYMODE_LOOP);
     al_attach_sample_instance_to_mixer(mBackgroundMusicInstance , al_get_default_mixer());
 }
 
 void Game::loadBitmaps()
 {
-    mPacmanBitmap = al_load_bitmap("Resources/Images/pacman.png");
-    mEnemyBitmaps.insert(std::make_pair(Enemy::Type::RED,
-                                        al_load_bitmap("Resources/Images/enemigo_rojo.png")));
-    mEnemyBitmaps.insert(std::make_pair(Enemy::Type::GREEN,
-                                        al_load_bitmap("Resources/Images/enemigo_verde.png")));
-    mFruitBitmaps.insert(std::make_pair(Fruit::Type::MANSANA,
-                                        al_load_bitmap("Resources/Images/mansana.png")));
-    mFruitBitmaps.insert(std::make_pair(Fruit::Type::FRESA,
-                                        al_load_bitmap("Resources/Images/fresa.png")));
-    mFruitBitmaps.insert(std::make_pair(Fruit::Type::NARANJA,
-                                        al_load_bitmap("Resources/Images/naranja.png")));
-    mFruitBitmaps.insert(std::make_pair(Fruit::Type::HONGO,
-                                        al_load_bitmap("Resources/Images/hongo.png")));
-    mFruitBitmaps.insert(std::make_pair(Fruit::Type::PERA,
-                                        al_load_bitmap("Resources/Images/pera.png")));
+    //Wall
+    mBitmaps.load(BitmapID::Wall, mPathToWallBitmap);
 
-}
+    //Pacman
+    mBitmaps.load(BitmapID::Pacman, "Resources/Images/pacman.png");
 
-void Game::destroyBitmaps()
-{
-    al_destroy_bitmap(mPacmanBitmap);
-    for(auto it = mEnemyBitmaps.begin(); it != mEnemyBitmaps.end(); ++it)
-    {
-        al_destroy_bitmap(it->second);
-    }
-    for(auto it = mFruitBitmaps.begin(); it != mFruitBitmaps.end(); ++it)
-    {
-        al_destroy_bitmap(it->second);
-    }
-}
+    //Enemies
+    mBitmaps.load(BitmapID::RedGhost, "Resources/Images/enemigo_rojo.png");
+    mBitmaps.load(BitmapID::GreenGhost, "Resources/Images/enemigo_verde.png");
 
-void Game::destroyFonts()
-{
-    al_destroy_font(mSmallFont);
-    al_destroy_font(mMiddleFont);
-    al_destroy_font(mLargeFont);
+    //Fruits
+    mBitmaps.load(BitmapID::Apple, "Resources/Images/mansana.png");
+    mBitmaps.load(BitmapID::Pear, "Resources/Images/pera.png");
+    mBitmaps.load(BitmapID::Orange, "Resources/Images/naranja.png");
+    mBitmaps.load(BitmapID::Mushroom, "Resources/Images/hongo.png");
+    mBitmaps.load(BitmapID::Strawberry, "Resources/Images/fresa.png");
 }
 
 void Game::destroySounds()
 {
-    al_destroy_sample(mSoundPacmanChomp);
-    al_destroy_sample(mSoundPacmanDeath);
-    al_destroy_sample(mBackgroundMusicSample);
     al_destroy_sample_instance(mBackgroundMusicInstance);
 }
 
-void Game::renderMap(ALLEGRO_BITMAP *wall, const charMatrix &map)
+void Game::renderMap(const charMatrix &map)
 {
     for(int row = 0; row < int(map.size()); ++row)
     {
         for(int col = 0; col < int(map[row].size()); ++col)
         {
             if(map[row][col] == 'X'){
-               al_draw_bitmap(wall, col * al_get_bitmap_width(wall),
-                              row * al_get_bitmap_height(wall), 0);
+               al_draw_bitmap(mBitmaps.get(BitmapID::Wall).get(),
+                              col * mBitmaps.get(BitmapID::Wall).width(),
+                              row * mBitmaps.get(BitmapID::Wall).height(),
+                              0);
 
             }
         }
@@ -384,8 +352,19 @@ void Game::createEnemies()
         } while(!isGoodPosition);
         Enemy::Type type = rand() % 100 < 50 ? Enemy::Type::RED :
                                                Enemy::Type::GREEN;
+        ALLEGRO_BITMAP* bitmap;
+
+        if(type == Enemy::Type::RED)
+        {
+            bitmap = mBitmaps.get(BitmapID::RedGhost).get();
+        }
+        else if(type == Enemy::Type::GREEN)
+        {
+            bitmap = mBitmaps.get(BitmapID::GreenGhost).get();
+        }
+
         auto enemy = std::make_unique<Enemy>(randX, randY, Direction::RIGHT, mMap,
-                                      mEnemyBitmaps[type], type);
+                                             bitmap, type);
         enemy->chooseRandomDir();
         mEnemies.push_back(std::move(enemy));
     }
@@ -415,26 +394,32 @@ void Game::createFruits()
         } while(!isGoodPosition);
         int rnd = rand() % 5;
         Fruit::Type randType;
+        ALLEGRO_BITMAP* bitmap;
         switch(rnd)
         {
             case 0:
                 randType = Fruit::Type::FRESA;
+                bitmap = mBitmaps.get(BitmapID::Strawberry).get();
                 break;
             case 1:
                 randType = Fruit::Type::HONGO;
+                bitmap = mBitmaps.get(BitmapID::Mushroom).get();
                 break;
             case 2:
                 randType = Fruit::Type::MANSANA;
+                bitmap = mBitmaps.get(BitmapID::Apple).get();
                 break;
             case 3:
                 randType = Fruit::Type::NARANJA;
+                bitmap = mBitmaps.get(BitmapID::Orange).get();
                 break;
             default:
                 randType = Fruit::Type::PERA;
+                bitmap = mBitmaps.get(BitmapID::Pear).get();
                 break;
 
         }
-        auto fruit = std::make_unique<Fruit>(randX, randY, randType, mFruitBitmaps[randType]);
+        auto fruit = std::make_unique<Fruit>(randX, randY, randType, bitmap);
         mFruits.push_back(std::move(fruit));
     }
 }
@@ -442,7 +427,6 @@ void Game::createFruits()
 void Game::togglePause()
 {
     //Using space key we can pause or resume our game
-    //mIsGamePaused = !mIsGamePaused;
     if(mGameState == GameState::PLAYING)
     {
         mGameState = GameState::PAUSE;
@@ -491,8 +475,8 @@ void Game::checkPacmanCollisions()
         if(!f->isEaten() && mPacman->isCollision(f->getX(), f->getY()))
         {
             mPacman->score(f.get());
-            al_play_sample(mSoundPacmanChomp, 1.0f, 0.0f, 1.0,
-                           ALLEGRO_PLAYMODE_ONCE, 0);
+            al_play_sample(mSounds.get(SampleID::PacmanChomp).get(),
+                           1.0f, 0.0f, 1.0, ALLEGRO_PLAYMODE_ONCE, 0);
             break;
         }
     }
@@ -567,7 +551,8 @@ void Game::handlePacmanEnemyCollision(Enemy &enemy)
     mPacman->setDirection(Direction::LEFT);
     mPacman->wound();
     enemy.disappear();
-    al_play_sample(mSoundPacmanDeath, 1.0f, 0.0f, 1.0, ALLEGRO_PLAYMODE_ONCE, 0);
+    al_play_sample(mSounds.get(SampleID::PagmanDeath).get(),
+                   1.0f, 0.0f, 1.0, ALLEGRO_PLAYMODE_ONCE, 0);
 }
 
 void Game::renderPacmanScore(int left, int top, ALLEGRO_FONT *font)

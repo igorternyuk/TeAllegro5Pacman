@@ -1,17 +1,16 @@
 #pragma once
 
-#include <allegro5/allegro.h>
-#include <allegro5/allegro_native_dialog.h>
-#include <allegro5/allegro_ttf.h>
-#include <allegro5/allegro_font.h>
-#include <allegro5/allegro_primitives.h>
-#include <allegro5/allegro_image.h>
-#include <allegro5/allegro_audio.h>
-#include <allegro5/allegro_acodec.h>
+#include "allegro5initializer.hpp"
 
 #include "pacman.hpp"
 #include "enemy.hpp"
 #include "fruit.hpp"
+#include "resourceindentifiers.hpp"
+#include "resourcemanager.hpp"
+#include "allegro5bitmap.hpp"
+#include "allegro5font.hpp"
+#include "allegro5sample.hpp"
+#include "allegro5timer.hpp"
 
 #include <vector>
 #include <map>
@@ -20,6 +19,9 @@
 class Game
 {
 public:
+    using BitmapManager = ResourceManager<Allegro5Bitmap, BitmapID>;
+    using FontManager = ResourceManager<Allegro5Font, FontID>;
+    using SoundManager = ResourceManager<Allegro5Sample, SampleID>;
     explicit Game();
     ~Game();
     void run();
@@ -42,34 +44,25 @@ private:
     };
 
     const char* WINDOW_TITLE = "Pacman";
-    const std::string GAME_PAUSED_TEXT = "GAME PAUSED";
-    const std::string WIN_MESSAGE_TEXT = "CONGRATULATIONS!!!YOU WON!!!";
-    const std::string LOST_MESSAGE_TEXT = "YOU LOST!!!";
+    const char*GAME_PAUSED_TEXT = "GAME PAUSED";
+    const char* WIN_MESSAGE_TEXT = "CONGRATULATIONS!!!YOU WON!!!";
+    const char* LOST_MESSAGE_TEXT = "YOU LOST!!!";
     const std::string PATH_TO_SETTINGS_FILE = "settings.txt";
 
+    Allegro5Initializer mAllegro5Initializer;
     ALLEGRO_DISPLAY *mDisplay;
-    ALLEGRO_BITMAP *mWallBitmap = nullptr;
-    ALLEGRO_BITMAP* mPacmanBitmap;
-    std::map<Enemy::Type, ALLEGRO_BITMAP*> mEnemyBitmaps;
-    std::map<Fruit::Type, ALLEGRO_BITMAP*> mFruitBitmaps;
-
-    //Sounds
-    ALLEGRO_SAMPLE *mSoundPacmanChomp;
-    ALLEGRO_SAMPLE *mSoundPacmanDeath;
-    ALLEGRO_SAMPLE *mBackgroundMusicSample;
+    BitmapManager mBitmaps;
+    FontManager mFonts;
+    SoundManager mSounds;
+    std::string mPathToWallBitmap;
 
     // Background music
     ALLEGRO_SAMPLE_INSTANCE *mBackgroundMusicInstance;
 
-    //Fonts
-    ALLEGRO_FONT *mSmallFont;
-    ALLEGRO_FONT *mMiddleFont;
-    ALLEGRO_FONT *mLargeFont;
-
     //Timers
-    ALLEGRO_TIMER *mTimer;
-    ALLEGRO_TIMER *mFrameTimer;
-    ALLEGRO_TIMER *mFantomTimer;
+    my_unique_ptr<ALLEGRO_TIMER> mTimer;
+    my_unique_ptr<ALLEGRO_TIMER> mFrameTimer;
+    my_unique_ptr<ALLEGRO_TIMER> mFantomTimer;
 
     //Keyboard
     ALLEGRO_KEYBOARD_STATE mKeyState;
@@ -106,7 +99,7 @@ private:
     void checkPacmanCollisions();
     void checkFantomCollisions();
     void handlePacmanEnemyCollision(Enemy &enemy);
-    void renderMap(ALLEGRO_BITMAP *mWallBitmap, const charMatrix &mMap);
+    void renderMap(const charMatrix &mMap);
     void renderPacmanScore(int left, int top, ALLEGRO_FONT *mSmallFont);
     void renderPacmanLives(ALLEGRO_FONT *mSmallFont);
     void renderTextMessage(const int &textLeft, const int &textTop,
