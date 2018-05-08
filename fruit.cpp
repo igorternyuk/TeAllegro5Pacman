@@ -22,8 +22,7 @@ int Fruit::getScoreIncrement() const
 
 void Fruit::render(int tileSize)
 {
-    if(mBitmap != nullptr)
-        al_draw_bitmap(mBitmap, mX * tileSize, mY * tileSize, NULL);
+    al_draw_bitmap(mBitmap, mX * tileSize, mY * tileSize, 0);
 }
 
 bool Fruit::isEaten()

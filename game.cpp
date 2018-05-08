@@ -8,63 +8,59 @@
 #include <sstream>
 #include <stdexcept>
 
-Game::Game()
+/*
+    const float mPacMovingSpeed = 4.0f;
+    const float mFantomMovingSpeed = 1.0f;
+    const float mPacAnimSpeed = 10.0f;
+*/
+Game::Game():
+    mDisplay{ al_create_display(SCREEN_WIDTH, SCREEN_HEIGHT), al_destroy_display },
+    mEventQueue{ al_create_event_queue(), al_destroy_event_queue },
+    mTimer{ mPacMovingSpeed },
+    mFantomTimer{ mFantomMovingSpeed },
+    mFrameTimer{ mPacAnimSpeed }
 {
-    mDisplay = al_create_display(SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    if(!mDisplay)
+    if(!mDisplay.get())
     {
          throw std::runtime_error("Could not create Allegro Window");
     }
 
     al_set_new_display_flags(ALLEGRO_RESIZABLE);
-    al_set_window_position(mDisplay, WINDOW_LEFT, WINDOW_TOP);
-    al_set_window_title(mDisplay, WINDOW_TITLE);
+    al_set_window_position(mDisplay.get(), WINDOW_LEFT, WINDOW_TOP);
+    al_set_window_title(mDisplay.get(), WINDOW_TITLE);
 
     loadSettings(PATH_TO_SETTINGS_FILE);
 
+    //Load images
     loadBitmaps();
 
-    // Here we created some fonts of different sizes
+    // Here we create some fonts of different sizes
     loadFonts();
 
     // loads sound effects
     loadSounds();
 
-    //Here we create multiple timers
-    mTimer = al_create_timer(1 / mPacMovingSpeed);
-    mFantomTimer = al_create_timer(1 / mFantomMovingSpeed);
-    mFrameTimer = al_create_timer(1 / mPacAnimSpeed);
+    al_register_event_source(mEventQueue.get(),
+                             mTimer.getEventSource());
+    al_register_event_source(mEventQueue.get(),
+                             mFantomTimer.getEventSource());
+    al_register_event_source(mEventQueue.get(),
+                             mFrameTimer.getEventSource());
+    al_register_event_source(mEventQueue.get(),
+                             al_get_display_event_source(mDisplay.get()));
+    al_register_event_source(mEventQueue.get(),
+                             al_get_keyboard_event_source());
 
-    mEventQueue = al_create_event_queue();
-
-    al_register_event_source(mEventQueue, al_get_timer_event_source(mTimer));
-    al_register_event_source(mEventQueue, al_get_timer_event_source(mFantomTimer ));
-    al_register_event_source(mEventQueue, al_get_timer_event_source(mFrameTimer));
-    al_register_event_source(mEventQueue, al_get_display_event_source(mDisplay));
-    al_register_event_source(mEventQueue, al_get_keyboard_event_source());
-
-    mPacman = std::make_unique<Pacman>(mInitPacmanX, mInitPacmanY, Direction::LEFT, mMap,
-                               mPacmanLivesCount, mBitmaps.get(BitmapID::Pacman).get());
-    prepareNewGame();
-}
-
-Game::~Game()
-{
-    al_destroy_timer(mTimer);
-    al_destroy_timer(mFantomTimer);
-    al_destroy_timer(mFrameTimer);
-    al_destroy_event_queue(mEventQueue);
-    destroySounds();
-    al_destroy_display(mDisplay);
+    mPacman = std::make_unique<Pacman>(mInitPacmanX, mInitPacmanY,
+                                       Direction::LEFT, mMap,
+                                       mPacmanLivesCount,
+                                       mBitmaps.get(BitmapID::Pacman).get());
+    startNewGame();
 }
 
 void Game::run()
 {
-    al_start_timer(mTimer);
-    al_start_timer(mFantomTimer);
-    al_start_timer(mFrameTimer);
-    al_play_sample_instance(mBackgroundMusicInstance);
+    al_play_sample_instance(mBackgroundMusicInstance.get());
 
     //main loop of the game
     while(mIsRunning) {
@@ -76,8 +72,9 @@ void Game::run()
 void Game::update()
 {
     ALLEGRO_EVENT events;
-    al_wait_for_event(mEventQueue, &events);
+    al_wait_for_event(mEventQueue.get(), &events);
     al_get_keyboard_state(&mKeyState);
+
     if(events.type == ALLEGRO_EVENT_KEY_UP)
     {
         if(events.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
@@ -90,8 +87,9 @@ void Game::update()
         }
         else if(events.keyboard.keycode == ALLEGRO_KEY_N)
         {
-            prepareNewGame();
+            startNewGame();
         }
+         mRender = true;
     }
     else if(events.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
     {
@@ -99,17 +97,17 @@ void Game::update()
     }
     else if(events.type == ALLEGRO_EVENT_TIMER)
     {
-        if(events.timer.source == mTimer)
+        if(events.timer.source == mTimer.get())
         {
             mPacman->handleUserInput(&mKeyState);
             checkPacmanCollisions();
             checkGameState();
         }
-        else if(events.timer.source == mFantomTimer)
+        else if(events.timer.source == mFantomTimer.get())
         {
             checkFantomCollisions();
         }
-        else if(events.timer.source == mFrameTimer)
+        else if(events.timer.source == mFrameTimer.get())
         {
             if(mPacman->isMoving() || mPacman->isWounded())
             {
@@ -120,8 +118,8 @@ void Game::update()
                 mPacman->stopAnimation();
             }
         }
-        mRender = true;
-    }
+         mRender = true;
+    }   
 }
 
 void Game::render()
@@ -165,6 +163,7 @@ void Game::render()
                               mFonts.get(FontID::Large).get());
         }
         al_flip_display();
+        mRender = false;
     }
 }
 
@@ -280,9 +279,15 @@ void Game::loadSounds()
     al_reserve_samples(3);
 
     // Loads background music
-    mBackgroundMusicInstance = al_create_sample_instance(mSounds.get(SampleID::Bgm).get());
-    al_set_sample_instance_playmode(mBackgroundMusicInstance , ALLEGRO_PLAYMODE_LOOP);
-    al_attach_sample_instance_to_mixer(mBackgroundMusicInstance , al_get_default_mixer());
+    my_unique_ptr<ALLEGRO_SAMPLE_INSTANCE> bgm
+    {
+        al_create_sample_instance(mSounds.get(SampleID::Bgm).get()),
+        al_destroy_sample_instance
+    };
+    al_set_sample_instance_playmode(bgm.get(), ALLEGRO_PLAYMODE_LOOP);
+    al_attach_sample_instance_to_mixer(bgm.get(), al_get_default_mixer());
+
+    mBackgroundMusicInstance.swap(bgm);
 }
 
 void Game::loadBitmaps()
@@ -303,11 +308,6 @@ void Game::loadBitmaps()
     mBitmaps.load(BitmapID::Orange, "Resources/Images/naranja.png");
     mBitmaps.load(BitmapID::Mushroom, "Resources/Images/hongo.png");
     mBitmaps.load(BitmapID::Strawberry, "Resources/Images/fresa.png");
-}
-
-void Game::destroySounds()
-{
-    al_destroy_sample_instance(mBackgroundMusicInstance);
 }
 
 void Game::renderMap(const charMatrix &map)
@@ -431,11 +431,13 @@ void Game::togglePause()
     {
         mGameState = GameState::PAUSE;
         stopAllTimers();
+        al_stop_sample_instance(mBackgroundMusicInstance.get());
     }
     else if(mGameState == GameState::PAUSE)
     {
         mGameState = GameState::PLAYING;
         startAllTimers();
+        al_play_sample_instance(mBackgroundMusicInstance.get());
     }
 }
 
@@ -455,16 +457,16 @@ void Game::checkGameState()
 
 void Game::startAllTimers()
 {
-    al_start_timer(mTimer);
-    al_start_timer(mFantomTimer);
-    al_start_timer(mFrameTimer);
+    mTimer.start();
+    mFantomTimer.start();
+    mFrameTimer.start();
 }
 
 void Game::stopAllTimers()
 {
-    al_stop_timer(mFantomTimer);
-    al_stop_timer(mTimer);
-    al_stop_timer(mFrameTimer);
+    mTimer.stop();
+    mFantomTimer.stop();
+    mFrameTimer.stop();
 }
 
 void Game::checkPacmanCollisions()
@@ -586,15 +588,15 @@ void Game::renderTextMessage(const int &textLeft, const int &textTop,
                  text.c_str());
 }
 
-void Game::prepareNewGame()
+void Game::startNewGame()
 {
-    mGameState = GameState::PLAYING;
     mPacman->reset();
     mFruits.clear();
     mEnemies.clear();
     createFruits();
     createEnemies();
     startAllTimers();
+    mGameState = GameState::PLAYING;
 }
 
 //For debugging only

@@ -169,7 +169,7 @@ float Entity::caclDistanceToTheTarget(Direction dir, int targetX, int targetY)
 
 void Entity::chooseRandomDir()
 {
-   Direction randDir;
+   Direction randDir = Direction::LEFT;
    bool isDirOK = true;
    do
    {

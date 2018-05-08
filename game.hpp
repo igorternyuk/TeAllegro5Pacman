@@ -23,7 +23,6 @@ public:
     using FontManager = ResourceManager<Allegro5Font, FontID>;
     using SoundManager = ResourceManager<Allegro5Sample, SampleID>;
     explicit Game();
-    ~Game();
     void run();
 private:
     enum
@@ -50,46 +49,50 @@ private:
     const std::string PATH_TO_SETTINGS_FILE = "settings.txt";
 
     Allegro5Initializer mAllegro5Initializer;
-    ALLEGRO_DISPLAY *mDisplay;
+    my_unique_ptr<ALLEGRO_DISPLAY> mDisplay;
     BitmapManager mBitmaps;
     FontManager mFonts;
     SoundManager mSounds;
-    std::string mPathToWallBitmap;
 
     // Background music
-    ALLEGRO_SAMPLE_INSTANCE *mBackgroundMusicInstance;
+    my_unique_ptr<ALLEGRO_SAMPLE_INSTANCE> mBackgroundMusicInstance;
+
+    my_unique_ptr<ALLEGRO_EVENT_QUEUE> mEventQueue;
+
+    const float mPacMovingSpeed = 0.25f;
+    const float mFantomMovingSpeed = 1.0f;
+    const float mPacAnimSpeed = 0.1f;
 
     //Timers
-    my_unique_ptr<ALLEGRO_TIMER> mTimer;
-    my_unique_ptr<ALLEGRO_TIMER> mFrameTimer;
-    my_unique_ptr<ALLEGRO_TIMER> mFantomTimer;
+    Allegro5Timer mTimer;
+    Allegro5Timer mFantomTimer;
+    Allegro5Timer mFrameTimer;
 
     //Keyboard
     ALLEGRO_KEYBOARD_STATE mKeyState;
-    ALLEGRO_EVENT_QUEUE *mEventQueue;
 
+    //Game initial settings
     charMatrix mMap;
     int mInitPacmanX, mInitPacmanY, mPacmanLivesCount, mEnemiesCount;
     int mFoodAmount;
+    std::string mPathToWallBitmap;
     bool mIsRunning = true;
-    bool mRender = false;
-    const float mPacMovingSpeed = 4.0f;
-    const float mFantomMovingSpeed = 1.0f;
-    const float mPacAnimSpeed = 10.0f;
+    bool mRender = true;
+
+    //Game objects
     std::unique_ptr<Pacman> mPacman;
     std::vector<std::unique_ptr<Fruit>> mFruits;
     std::vector<std::unique_ptr<Enemy>> mEnemies;
+
     GameState mGameState = GameState::PLAYING;
 
+private:
     void update();
     void render();
     void loadSettings(const std::string &fileName);
     void loadFonts();
     void loadSounds();
     void loadBitmaps();
-    void destroyBitmaps();
-    void destroyFonts();
-    void destroySounds();
     void createEnemies();
     void createFruits();
     void togglePause();
@@ -105,6 +108,6 @@ private:
     void renderTextMessage(const int &textLeft, const int &textTop,
                      const std::string &text, ALLEGRO_COLOR color,
                      ALLEGRO_FONT *mSmallFont);
-    void prepareNewGame();
+    void startNewGame();
     void printMap();
 };
